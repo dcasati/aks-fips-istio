@@ -6,7 +6,8 @@ trap exit SIGINT SIGTERM
 
 ################################################################################
 # AKS FIPS + Istio Setup
-# Creates AKS with Azure CNI Overlay, FIPS node pool, Istio add-on, and Istio CNI.
+# Creates a private AKS cluster with Azure CNI Overlay, FIPS node pool,
+# Istio add-on, and Istio CNI.
 
 ################################################################################
 # Default configuration
@@ -45,13 +46,14 @@ __usage="
 
 Possible verbs are:
     install           Full deployment flow.
+    delete            Delete the entire demo (resource group + local kubeconfig).
     register          Register required resource providers.
     create-rg         Create or update the resource group.
     create-aks        Create AKS cluster (Azure CNI Overlay + Istio add-on).
     add-fips-pool     Add FIPS-enabled user node pool.
     get-credentials   Pull kubeconfig for the cluster.
     enable-istio-cni  Enable Istio CNI chaining.
-    verify            Validate nodes and Istio control plane.
+    verify            Validate nodes and Istio control plane using az invoke.
     check-deps        Check required tools and Azure login.
     show              Show current settings and cluster status.
 
@@ -187,6 +189,7 @@ do_create_aks() {
     --enable-workload-identity \
     --enable-azure-service-mesh \
     --revision asm-1-29 \
+    --enable-private-cluster \
     --only-show-errors
 }
 
@@ -226,10 +229,22 @@ do_enable_istio_cni() {
 }
 
 do_verify() {
-  log "Nodes"
-  kubectl get nodes -o wide
-  log "Istio control plane pods"
-  kubectl get pods -n aks-istio-system
+  log "Validating private cluster using az aks command invoke..."
+  az aks command invoke \
+    --resource-group "${RESOURCE_GROUP}" \
+    --name "${CLUSTER_NAME}" \
+    --command "kubectl get nodes -o wide" \
+    --only-show-errors
+  az aks command invoke \
+    --resource-group "${RESOURCE_GROUP}" \
+    --name "${CLUSTER_NAME}" \
+    --command "kubectl get pods -n aks-istio-system -o wide" \
+    --only-show-errors
+  az aks command invoke \
+    --resource-group "${RESOURCE_GROUP}" \
+    --name "${CLUSTER_NAME}" \
+    --command "kubectl get ds -n aks-istio-system | grep -i istio-cni || true" \
+    --only-show-errors
 }
 
 do_show() {
@@ -254,7 +269,31 @@ do_install() {
   log "Done"
   log "Sidecar label command:"
   log "  REVISION=\$(az aks show -g ${RESOURCE_GROUP} -n ${CLUSTER_NAME} --query 'serviceMeshProfile.istio.revisions[0]' -o tsv)"
-  log "  kubectl label namespace <your-namespace> istio.io/rev=\${REVISION} --overwrite"
+  log "  az aks command invoke -g ${RESOURCE_GROUP} -n ${CLUSTER_NAME} --command \"kubectl label namespace <your-namespace> istio.io/rev=\${REVISION} --overwrite\""
+}
+
+do_delete() {
+  log "Deleting demo resources..."
+
+  if az group exists --name "${RESOURCE_GROUP}" | grep -q true; then
+    log "Deleting resource group ${RESOURCE_GROUP}"
+    az group delete \
+      --name "${RESOURCE_GROUP}" \
+      --yes \
+      --only-show-errors
+    log "Resource group deleted"
+  else
+    log "Resource group ${RESOURCE_GROUP} not found, skipping"
+  fi
+
+  if [ -f "${KUBECONFIG}" ]; then
+    log "Removing local kubeconfig ${KUBECONFIG}"
+    rm -f "${KUBECONFIG}"
+  else
+    log "Local kubeconfig not found, skipping"
+  fi
+
+  log "Demo cleanup completed"
 }
 
 exec_case() {
@@ -262,6 +301,7 @@ exec_case() {
 
   case ${_opt} in
   install)           do_install ;;
+  delete)            do_delete ;;
   register)          do_register ;;
   create-rg)         do_create_rg ;;
   create-aks)        do_create_aks ;;

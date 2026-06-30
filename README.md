@@ -1,8 +1,9 @@
-# AKS + Azure CNI Overlay + FIPS Node Pool + Istio + Istio CNI
+# AKS Private Cluster + Azure CNI Overlay + FIPS Node Pool + Istio + Istio CNI
 
 This repo creates an AKS cluster in **West US 2** with:
 
 - Azure CNI Overlay
+- Private API server
 - 3 x system nodes (`Standard_DS4_v2`)
 - A FIPS-enabled user node pool
 - Istio service mesh add-on
@@ -46,7 +47,7 @@ This repo creates an AKS cluster in **West US 2** with:
 5. Run the setup script:
 
    ```bash
-   ./setup.sh
+   ./setup.sh -x install
    ```
 
 ## What `setup.sh` does
@@ -58,7 +59,7 @@ This repo creates an AKS cluster in **West US 2** with:
 5. Adds a FIPS-enabled node pool (`fipspool`).
 6. Pulls kubeconfig to `cluster.config`.
 7. Enables Istio CNI.
-8. Verifies nodes and Istio control plane pods.
+8. Verifies nodes and Istio components using `az aks command invoke`.
 
 ## Providers registered
 
@@ -81,17 +82,32 @@ This repo creates an AKS cluster in **West US 2** with:
 ## Verify after deployment
 
 ```bash
-kubectl get nodes -o wide
-kubectl get pods -n aks-istio-system
 az aks show -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" --query 'serviceMeshProfile' -o yaml
+az aks command invoke -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" --command "kubectl get nodes -o wide"
+az aks command invoke -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" --command "kubectl get pods -n aks-istio-system -o wide"
+az aks command invoke -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" --command "kubectl get ds -n aks-istio-system | grep -i istio-cni || true"
 ```
 
 ## Enable sidecar injection on a namespace
 
 ```bash
 REVISION=$(az aks show -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" --query 'serviceMeshProfile.istio.revisions[0]' -o tsv)
-kubectl label namespace <your-namespace> istio.io/rev="${REVISION}" --overwrite
+az aks command invoke -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" \
+  --command "kubectl label namespace <your-namespace> istio.io/rev=${REVISION} --overwrite"
 ```
+
+## Delete the entire demo
+
+Run:
+
+```bash
+./setup.sh -x delete
+```
+
+This deletes:
+
+- The full resource group in Azure (`$RESOURCE_GROUP`)
+- The local kubeconfig file (`$KUBECONFIG`, default `./cluster.config`)
 
 ## Notes
 
