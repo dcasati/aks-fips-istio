@@ -1,0 +1,5 @@
+# kubeconfig produced by az aks get-credentials
+cluster.config
+
+# direnv
+.envrc.local
