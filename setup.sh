@@ -198,6 +198,7 @@ do_create_aks() {
     --enable-azure-service-mesh \
     --revision asm-1-29 \
     --enable-private-cluster \
+    --enable-fips-image \
     --only-show-errors
 }
 
