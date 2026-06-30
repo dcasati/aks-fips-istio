@@ -21,6 +21,9 @@ FIPS_POOL_NAME=${FIPS_POOL_NAME:-fipspool}
 FIPS_NODE_SIZE=${FIPS_NODE_SIZE:-Standard_D4ds_v5}
 FIPS_NODE_COUNT=${FIPS_NODE_COUNT:-3}
 KUBECONFIG=${KUBECONFIG:-${PWD}/cluster.config}
+POD_CIDR=${POD_CIDR:-10.244.0.0/16}
+SERVICE_CIDR=${SERVICE_CIDR:-10.0.0.0/16}
+DNS_SERVICE_IP=${DNS_SERVICE_IP:-10.0.0.10}
 ################################################################################
 
 PROVIDER_LIST="
@@ -67,6 +70,9 @@ Environment variables (with defaults):
     FIPS_POOL_NAME=${FIPS_POOL_NAME}
     FIPS_NODE_SIZE=${FIPS_NODE_SIZE}
     FIPS_NODE_COUNT=${FIPS_NODE_COUNT}
+    POD_CIDR=${POD_CIDR}
+    SERVICE_CIDR=${SERVICE_CIDR}
+    DNS_SERVICE_IP=${DNS_SERVICE_IP}
     KUBECONFIG=${KUBECONFIG}
 "
 
@@ -90,7 +96,9 @@ print_header() {
   echo "FIPS Pool Name:    $FIPS_POOL_NAME"
   echo "FIPS Node Size:    $FIPS_NODE_SIZE"
   echo "FIPS Node Count:   $FIPS_NODE_COUNT"
-  echo "Kubeconfig:        $KUBECONFIG"
+  echo "Pod CIDR:          $POD_CIDR"
+  echo "Service CIDR:      $SERVICE_CIDR"
+  echo "DNS Service IP:    $DNS_SERVICE_IP"
   echo ""
 }
 
@@ -180,9 +188,9 @@ do_create_aks() {
     --max-pods 250 \
     --network-plugin azure \
     --network-plugin-mode overlay \
-    --pod-cidr 10.244.0.0/16 \
-    --service-cidr 10.0.0.0/16 \
-    --dns-service-ip 10.0.0.10 \
+    --pod-cidr "${POD_CIDR}" \
+    --service-cidr "${SERVICE_CIDR}" \
+    --dns-service-ip "${DNS_SERVICE_IP}" \
     --load-balancer-sku standard \
     --generate-ssh-keys \
     --enable-oidc-issuer \
